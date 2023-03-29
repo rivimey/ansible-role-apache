@@ -16,27 +16,51 @@ apache_remove_default_vhost: false
 apache_global_vhost_settings: |
   DirectoryIndex index.php index.html
 
-apache_vhosts:
-  # Additional properties:
-  # 'serveradmin, serveralias, allow_override, options, extra_parameters'.
-  - servername: "local.dev"
-    documentroot: "/var/www/html"
+apache_vhosts: []
+# Additional properties:
+#  - servername: "local.dev"
+#    serveradmin: "you@example.net"
+#    serveralias: "www.example.org"
+#    documentroot: "/var/www/html"
+#    reverseproxy:
+#      - dir: "/"
+#        url: "http://example.org:8008"
+#    logname: "mysite.log"
+#    httpprotos: "h2 http/1.1"
+#    redirectssl: yes/no
+#    extra_parameters: |
+#      KeepAliveTimeout 9
+#    allow_override: None      -- AllowOverride directive for docroot
+#    options: +FollowSymLinks  -- Options directive for docroot
 
 apache_allow_override: "All"
 apache_options: "-Indexes +FollowSymLinks"
 
 apache_vhosts_ssl: []
 # Additional properties:
-# 'serveradmin, serveralias, allow_override, options, extra_parameters'.
-# - servername: "local.dev",
-#   documentroot: "/var/www/html",
-#   certificate_file: "/path/to/certificate.crt",
-#   certificate_key_file: "/path/to/certificate.key",
-#   # Optional.
-#   certificate_chain_file: "/path/to/certificate_chain.crt"
+#  - servername: "local.dev",
+#    serveradmin: "you@example.net"
+#    serveralias: "www.example.org"
+#    documentroot: "/var/www/html",
+#    reverseproxy:
+#      - dir: "/"
+#        url: "http://example.org:8008"
+#    logname: "mysite.log"
+#    certificate_file: "/path/to/certificate.crt",
+#    certificate_key_file: "/path/to/certificate.key",
+#    certificate_chain_file: "/path/to/certificate_chain.crt"   -- optional
+#    extra_parameters: |
+#      KeepAliveTimeout 9
+#    allow_override: None      -- AllowOverride directive for docroot
+#    options: +FollowSymLinks  -- Options directive for docroot
+#    use_sslparams: yesno      -- Include ssl-params.conf, otherwise global ciphers, protocol below.
 
 apache_ignore_missing_ssl_certificate: true
+apache_missing_ssl_certificate_snakeoil: yes
 
+apache_httpprotos: "http/1.1"
+# True = Include ssl-params.conf, not set up by default.
+apache_use_sslparams: no
 apache_ssl_protocol: "All -SSLv2 -SSLv3"
 apache_ssl_cipher_suite: "AES256+EECDH:AES256+EDH"
 

@@ -17,6 +17,7 @@
     mode: 0644
   with_items: "{{ apache_mods_enabled }}"
   notify: restart apache
+  when: apache_mods_checked is not defined and not apache_mods_checked
 
 - name: Disable Apache mods.
   file:
@@ -24,30 +25,74 @@
     state: absent
   with_items: "{{ apache_mods_disabled }}"
   notify: restart apache
+  when: apache_mods_checked is not defined and not apache_mods_checked
+
+# Apache mods takes a while and the role might get called twice
+- name: Note now checked apache-mod setup
+  set_fact:
+    apache_mods_checked: yes
+
+- name: Default server-status is disabled
+  set_fact:
+    global_server_status: no
+
+- name: Check whether server-status is enabled
+  set_fact:
+    global_server_status: yes
+  with_items: "{{ apache_vhosts }}"
+  when: apache_create_vhosts and vhost.serverstatus is defined and vhost.serverstatus
+  loop_control:
+    loop_var: vhost
 
 - name: Check whether certificates defined in vhosts exist.
   stat: "path={{ item.certificate_file }}"
   register: apache_ssl_certificates
   with_items: "{{ apache_vhosts_ssl }}"
 
-- name: Add apache vhosts configuration.
+- name: Delete old vhosts file, if present.
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "{{ apache_conf_path }}/sites-available/vhosts.conf"
+    - "{{ apache_conf_path }}/sites-enabled/vhosts.conf"
+  notify: restart apache
+
+- name: Add apache global configuration.
   template:
-    src: "{{ apache_vhosts_template }}"
-    dest: "{{ apache_conf_path }}/sites-available/{{ apache_vhosts_filename }}"
+    src: vglobal.conf.j2
+    dest: "{{ apache_conf_path }}/sites-available/global.conf"
     owner: root
     group: root
     mode: 0644
   notify: restart apache
-  when: apache_create_vhosts | bool
 
 - name: Add vhost symlink in sites-enabled.
   file:
-    src: "{{ apache_conf_path }}/sites-available/{{ apache_vhosts_filename }}"
-    dest: "{{ apache_conf_path }}/sites-enabled/{{ apache_vhosts_filename }}"
+    src: "{{ apache_conf_path }}/sites-available/global.conf"
+    dest: "{{ apache_conf_path }}/sites-enabled/global.conf"
     state: link
-    mode: 0644
   notify: restart apache
-  when: apache_create_vhosts | bool
+
+- name: Create Plain Virtualhosts
+  include_tasks: vhost-template-conf.yml
+  vars:
+    conf_extn: ""
+  with_items: "{{ apache_vhosts }}"
+  loop_control:
+    loop_var: vhost
+    index_var: vhost_idx
+  when: (apache_create_vhosts | bool)
+
+- name: Create SSL Virtualhosts
+  include_tasks: vhost-template-conf.yml
+  vars:
+    conf_extn: "_ssl"
+  with_items: "{{ apache_vhosts_ssl }}"
+  loop_control:
+    loop_var: vhost
+    index_var: vhost_idx
+  when: (apache_create_vhosts | bool)
 
 - name: Remove default vhost in sites-enabled.
   file:

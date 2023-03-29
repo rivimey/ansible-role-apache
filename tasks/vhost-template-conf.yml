@@ -1,0 +1,17 @@
+---
+
+- name: Add apache virtual host configuration.
+  template:
+    src: "vhost{{ conf_extn }}.conf.j2"
+    dest: "{{ apache_conf_path }}/sites-available/{{ vhost.servername }}{{ conf_extn }}.conf"
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart apache
+
+- name: Add virtual host symlink in sites-enabled.
+  file:
+    src: "{{ apache_conf_path }}/sites-available/{{ vhost.servername }}{{ conf_extn }}.conf"
+    dest: "{{ apache_conf_path }}/sites-enabled/{{ vhost.servername }}{{ conf_extn }}.conf"
+    state: link
+  notify: restart apache

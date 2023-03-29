@@ -1,106 +1,9 @@
-{{ apache_global_vhost_settings }}
+# {{ ansible_managed }}
+#
+# Set up VirtualHost for {{ vhost.servername }}
 
-
-# Set up VirtualHosts
-{%- for vhost in apache_vhosts %}
-
-<VirtualHost {{ apache_listen_ip }}:{{ apache_listen_port }}>
-  ServerName {{ vhost.servername }}
-{% if vhost.serveralias is defined %}
-  ServerAlias {{ vhost.serveralias }}
-{% endif %}
-{% if vhost.serveradmin is defined %}
-  ServerAdmin {{ vhost.serveradmin }}
-{% endif %}
-{% if vhost.httpprotos is defined %}
-  Protocols "{{ vhost.httpprotos | default(apache_httpprotos) }}"
-{% endif %}
-  ErrorLog /var/log/apache2/{{ vhost.servername }}-errors.log
-  CustomLog /var/log/apache2/{{ vhost.servername }}-access.log combined
-  LogLevel warn
-  TimeOut 60
-
-{% if vhost.redirectssl is defined and vhost.redirectssl %}
-  <IfModule mod_rewrite.c>
-    RewriteEngine On
-    RewriteCond %{HTTPS} !=on
-    RewriteRule ^/?(.*) https://{{ vhost.servername }}/$1 [R,L]
-  </IfModule>
-{% else -%}
-{% if vhost.documentroot is defined %}
-  DocumentRoot "{{ vhost.documentroot }}"
-{% endif -%}
-{% if vhost.reverseproxy is defined -%}
-{% for proxy in vhost.reverseproxy %}
-  <Location {{ proxy.dir  }}>
-    ProxyPass {{ proxy.url }}
-    ProxyPassReverse {{ proxy.url }}
-{% if proxy.preservehost is defined %}
-    ProxyPreserveHost {{proxy.preservehost |as_on_off }}
-{% endif %} {#- preservehost #}
-{% if proxy.proxyheaders is defined %}
-    ProxyAddHeaders {{proxy.proxyheaders |as_on_off }}
-{% endif %} {#- proxyheaders #}
-  </Location>
-{% endfor -%}
-{% endif %} {#- reverseproxy #}
-
-{% if vhost.php_fpm is defined %}
-  # Check vhost.php: {{ vhost.php_fpm |default("-") }} php_version: {{ php_version }}
-  DirectoryIndex index.php
-  Include /etc/apache2/conf-available/php{{ vhost.php_fpm }}-fpm.conf
-{% endif %} {#- php_fpm #}
-
-{% if vhost.documentroot is defined %}
-  <Directory />
-    Options +FollowSymLinks
-    AllowOverride None
-  </Directory>
-  <Directory "{{ vhost.documentroot }}/.git">
-    AllowOverride None
-    Require all denied
-  </Directory>
-  AccessFileName .htaccess
-  <Files ~ "^\.ht">
-    Require all denied
-  </Files>
-  <Files ~ "^apple-touch.*\.png">
-    Require all denied
-  </Files>
-  <Files ~ "\.cgi$">
-    Require all denied
-  </Files>
-
-  <Directory "{{ vhost.documentroot }}">
-    AllowOverride {{ vhost.allow_override | default(apache_allow_override) }}
-    Options {{ vhost.options | default(apache_options) }}
-    Require all granted
-
-{% if vhost.is_drupal is defined and vhost.is_drupal %}
-  <IfModule mod_rewrite.c>
-    RewriteEngine On
-    # Rewrite URLs of the form 'x' to the form 'index.php?q=x'.
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteCond %{REQUEST_URI} !=/favicon.ico
-    RewriteRule ^(.*)$          index.php?q=$1          [L,QSA]
-  </IfModule>
-{% endif -%}
-  </Directory>
-
-{% endif %} {#- documentroot #}
-{% endif %} {#- not redirectssl #}
-
-{% if vhost.extra_parameters is defined %}
-{{ vhost.extra_parameters | indent(width=2, first=True) }}
-{% endif -%} {#- extra #}
-
-</VirtualHost>
-
-{% endfor %}
 
 # Set up SSL VirtualHosts
-{% for vhost in apache_vhosts_ssl -%}
 {% if apache_ignore_missing_ssl_certificate or apache_ssl_certificates.results[vhost_idx].stat.exists -%}
 <VirtualHost {{ apache_listen_ip }}:{{ apache_listen_port_ssl }}>
   ServerName {{ vhost.servername }}
@@ -134,8 +37,8 @@
     # Requires Apache >= 2.4.11
     SSLSessionTickets off
 {% endif %}
-{% if not apache_ssl_certificates.results[vhost_idx].stat.exists -%}
-    # Ignore Missing SSL certs, so use insecure temporary key instead.
+{% if apache_missing_ssl_certificate_snakeoil and not apache_ssl_certificates.results[vhost_idx].stat.exists %}
+    # OK to Ignore Missing SSL certs and real cert not found, so use insecure temporary key instead. {{ vhost_idx }} {{ apache_ssl_certificates.results[vhost_idx].stat.exists }}
     SSLCertificateFile /etc/ssl/certs/ssl-cert-snakeoil.pem
     SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
 {% else %}
@@ -148,9 +51,17 @@
   </IfModule>
 {% if vhost.reverseproxy is defined %}
 {% for proxy in vhost.reverseproxy %}
-  ProxyPass {{ proxy.dir  }} {{ proxy.url }}
-  ProxyPassReverse {{ proxy.dir  }} {{ proxy.url }}
-{% endfor %}
+  <Location {{ proxy.dir  }}>
+    ProxyPass {{ proxy.url }}
+    ProxyPassReverse {{ proxy.url }}
+{% if proxy.preservehost is defined %}
+    ProxyPreserveHost {{proxy.preservehost |as_on_off }}
+{% endif %} {#- preservehost #}
+{% if proxy.proxyheaders is defined %}
+    ProxyAddHeaders {{proxy.proxyheaders |as_on_off }}
+{% endif %} {#- proxyheaders #}
+  </Location>
+{% endfor -%}
 {% endif %}
 
 {% if vhost.php_fpm is defined %}
@@ -210,4 +121,3 @@
 #   : {{ vhost.certificate_key_file }}
 
 {% endif %} {#- missing certificate #}
-{% endfor %}
