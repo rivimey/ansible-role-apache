@@ -10,7 +10,7 @@ If you are using SSL/TLS, you will need to provide your own certificate and key 
 
 If you are using Apache with PHP, I recommend using the `geerlingguy.php` role to install PHP, and you can either use mod_php (by adding the proper package, e.g. `libapache2-mod-php5` for Ubuntu, to `php_packages`), or by also using `geerlingguy.apache-php-fpm` to connect Apache to PHP via FPM. See that role's README for more info.
 
-## Role Variables
+## Role Global Variables
 
 Available variables are listed below, along with default values (see `defaults/main.yml`):
 
@@ -37,6 +37,8 @@ On Debian/Ubuntu, a default virtualhost is included in Apache's configuration. S
     apache_global_vhost_settings: |
       DirectoryIndex index.php index.html
       # Add other global settings on subsequent lines.
+
+## Virtual Host Variables
 
 You can add or override global Apache configuration settings in the role-provided vhosts file (assuming `apache_create_vhosts` is true) using this variable. By default it only sets the DirectoryIndex configuration.
 
@@ -112,6 +114,75 @@ If you have enabled any additional repositories such as _ondrej/apache2_, [geerl
 
 If you would like to only create SSL vhosts when the vhost certificate is present (e.g. when using Let’s Encrypt), set `apache_ignore_missing_ssl_certificate` to `false`. When doing this, you might need to run your playbook more than once so all the vhosts are configured (if another part of the playbook generates the SSL certificates).
 
+### Enable use of PHP-FPM for a Site
+
+The vhost key `php_fpm` signals two things: that the server should configure the site to use PHP-FPM, and the version of php to configure. So:
+
+      - servername: "www.example.uk"
+        php_fpm: 8.1
+
+would cause the server to enable php-fpm8.1 on the site and setting `index.php` as the DirectoryIndex.
+
+It enables php-fpm by directly including the file `conf-available/php{{ vhost.php_fpm }}-fpm.conf` in the virtualhost, which as shipped by Debian, Ubuntu et enables the correct FCGI proxy details.
+
+> The php-fpm apache conf should _not_ be enabled first (e.g. using `a2enconf php8.1-fpm`) as this would enable that configuration for all sites. By including the conf file within the Virtualhost it becomes possible to run two sites using different versions of php.
+
+> Some php-fpm configuration files wrap the whole stanza in "if mod_php is not installed", so simply installing mod_php on the server will break the php-fpm configuration. As mod_php is noticeably slower than php-fpm, disabling and uninstalling mod_php should be the first path to exploree. 
+
+> There could be a conflict between the global `php_version` variable, which is used by some php configuration roles, and the version specified here. You can of course specify this key using "{{ php_version }}", but if you chose not to, you will need to otherwise ensure the indicated php-fpm version is installed and operational. To aid you in this, the template vhosts configuration file includes both version numbers. 
+
+### Server Status configuration
+
+Those wanting to configure a tool such as prometheus to gather performance data about apache will likely wish to configure the `/server-status` endpoint & module. This is slightly complicated with vhosts because it requires a global and a local parameter. The vhost key:
+
+      - servername: "www.example.uk"
+        serverstatus: true
+        status_url: "/-/serverstatus"
+
+will do just that, in this case configuring the endpoint `http://servername/-/serverstatus}` on the server with local-only access. If the serverstatus key is missing or not True, the status url is explicitly denied.
+
+Setting the vhost key `status_url` is optional and the default value is the same as the default for the mod_status module itself, "/server-status".
+
+> Note: You must separately arrange for the mod_status apache module to be installed and enabled using the other tools in this role.
+
+### Automatic Redirect to SSL host 
+
+The (non-SSL) vhost key `redirectssl`  can be used to set up an HTTP host that redirects to the equivalently-named HTTPS host:
+
+      - servername: "www.example.uk"
+        serveralias: "example.uk"
+        serveradmin: "postmaster@{{ primary_domain }}"
+        redirectssl: yes
+
+This will redirect `http://www.example.uk/foo` to `https://www.example.uk/foo` . 
+and `http://example.uk/foo` to `https://www.example.uk/foo` without any further effort.
+
+> Note: You must separately arrange for the mod_rewrite apache module to be installed and enabled using the other tools in this role.
+
+### Configuring Drupal (& other CMS) Query URL Rewrites
+
+The vhost key `is_drupal` can be used to signal that this is a Drupal site being served, one effect being the inclusion of Rewrite rules to transform `/path` into the usable `/index.php?q=/path` form. While this was designed for Drupal it is probably also usable by several other CMSs.
+
+> Note: You must separately arrange for the mod_rewrite apache module to be installed and enabled using the other tools in this role.
+
+### Configuring one or more Reverse Proxy(s)
+
+Reverse proxies can be configured on a host using the vhost key `reverseproxy`, which is an array of proxy dictionaries:'
+
+      - servername: "www.example.uk"
+        reverseproxy:
+            - dir: "/"
+              url: "http://site.example.org:8888/"
+
+Two additional keys can be added to 'dir' and 'url' to provide values for the ProxyPreserveHost and ProxyAddHeaders configuration keywords should they be needed, for example:
+
+              preservehost: yes
+              proxyheaders: no
+
+Proxies set up using this have both ProxyPass and ProxyPassReverse set.
+
+> Note: You must separately arrange for the mod_proxy apache module to be installed and enabled using the other tools in this role.
+
 ## .htaccess-based Basic Authorization
 
 If you require Basic Auth support, you can add it either through a custom template, or by adding `extra_parameters` to a VirtualHost configuration, like so:
@@ -158,3 +229,4 @@ MIT / BSD
 ## Author Information
 
 This role was created in 2014 by [Jeff Geerling](https://www.jeffgeerling.com/), author of [Ansible for DevOps](https://www.ansiblefordevops.com/).
+Extensions were added 2019-2023 by  [Ruth Ivimey-Cook](https://www.ivimey.com/). Updates from jeffgeerling's original have been included where possible.
