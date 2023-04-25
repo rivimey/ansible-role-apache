@@ -56,6 +56,21 @@
   with_items:
     - "{{ apache_conf_path }}/sites-available/vhosts.conf"
     - "{{ apache_conf_path }}/sites-enabled/vhosts.conf"
+  when:
+    - (apache_create_vhosts | bool)
+    - (not apache_create_vhost_files | bool)
+  notify: restart apache
+
+- name: Add apache one-file vhosts configuration.
+  template:
+    src: vhosts.conf.j2
+    dest: "{{ apache_conf_path }}/sites-available/vhosts.conf"
+    owner: root
+    group: root
+    mode: 0644
+  when:
+    - (apache_create_vhosts | bool)
+    - (not apache_create_vhost_files | bool)
   notify: restart apache
 
 - name: Add apache global configuration.
@@ -65,6 +80,8 @@
     owner: root
     group: root
     mode: 0644
+  when:
+    - (apache_create_vhosts | bool)
   notify: restart apache
 
 - name: Add vhost symlink in sites-enabled.
@@ -72,6 +89,7 @@
     src: "{{ apache_conf_path }}/sites-available/global.conf"
     dest: "{{ apache_conf_path }}/sites-enabled/global.conf"
     state: link
+  when: not apache_create_vhost_files
   notify: restart apache
 
 - name: Create Plain Virtualhosts
@@ -82,7 +100,9 @@
   loop_control:
     loop_var: vhost
     index_var: vhost_idx
-  when: (apache_create_vhosts | bool)
+  when:
+    - (apache_create_vhosts | bool)
+    - (apache_create_vhost_files | bool)
 
 - name: Create SSL Virtualhosts
   include_tasks: vhost-template-conf.yml
@@ -92,7 +112,9 @@
   loop_control:
     loop_var: vhost
     index_var: vhost_idx
-  when: (apache_create_vhosts | bool)
+  when:
+    - (apache_create_vhosts | bool)
+    - (apache_create_vhost_files | bool)
 
 - name: Remove default vhost in sites-enabled.
   file:

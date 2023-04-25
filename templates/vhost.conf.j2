@@ -49,6 +49,7 @@
   DocumentRoot "{{ vhost.documentroot }}"
 {% endif -%}
 {% if vhost.reverseproxy is defined -%}
+  <IfModule mod_proxy.c>
 {% for proxy in vhost.reverseproxy %}
   <Location {{ proxy.dir  }}>
     ProxyPass {{ proxy.url }}
@@ -61,10 +62,11 @@
 {% endif %} {#- proxyheaders #}
   </Location>
 {% endfor -%}
+  </IfModule>
 {% endif %} {#- reverseproxy #}
 
 {% if vhost.php_fpm is defined %}
-  # Check vhost.php: {{ vhost.php_fpm |default("-") }} php_version: {{ php_version }}
+  # Check vhost.php_fpm: {{ vhost.php_fpm |default("-") }} php_version: {{ php_version |default("-") }}
   DirectoryIndex index.php
   Include /etc/apache2/conf-available/php{{ vhost.php_fpm }}-fpm.conf
 {% endif %} {#- php_fpm #}
